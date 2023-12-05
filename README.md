@@ -1,4 +1,4 @@
-# Squid (formerly octopi-research)
+# Open hardware bioimaging platform for fluorescence microscopy and Raman based on the SQUID/OCTOPI 60x60mm inverted stage
 
 ![alt text](https://i.imgur.com/Gjwh02y.png)
 
