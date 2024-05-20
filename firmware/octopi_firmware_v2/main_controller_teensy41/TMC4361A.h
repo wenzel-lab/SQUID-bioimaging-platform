@@ -59,6 +59,7 @@ typedef struct
   float   threadPitch;
   uint16_t stepsPerRev;
   uint16_t microsteps;
+  bool velocity_mode;
   uint8_t dac_idx;
   uint32_t dac_fullscale_msteps;
   
@@ -66,6 +67,10 @@ typedef struct
   //TClosedLoopConfig closedLoopConfig;
   uint8_t status;
   ConfigurationTypeDef *cover;
+
+  int target_tolerance;
+  int pid_tolerance;
+
 } TMC4361ATypeDef;
 
 typedef void (*tmc4361A_callback)(TMC4361ATypeDef*, ConfigState);
