@@ -27,4 +27,7 @@ Make sure that an _.ini_ file is present in the software folder to be able to ru
 python3 main.py
 ```
 
+
+
+
 *Script may be subject to changes in the future.
