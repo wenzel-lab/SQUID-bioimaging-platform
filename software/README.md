@@ -3,7 +3,7 @@
 wget https://raw.githubusercontent.com/wenzel-lab/SQUID-bioimaging-platform/master/software/setup_wenzel_station.sh
 chmod +x setup_wenzel_station.sh
 ```
-You will need to edit your .sh file. Ubuntu python paths were giving us problems. So we decided to contain everything in a mamba environment and add the path of the python3 executable when needed. If you have a cleaner way to do this let us know!
+You will need to edit your _.sh_ file. Ubuntu python paths were giving us problems. So we decided to contain everything in a mamba environment and add the path of the python3 executable when needed. If you have a cleaner way to do this let us know!
 
 Before executing, make sure you have a mamba installation in your device.
 ```
@@ -20,7 +20,7 @@ If everything is good, you should be able to execute your .sh file.
 Reboot the computer to finish the installation.
 
 ## Configuring the software
-Make sure that an .ini file is present in the software folder to be able to run the program. In our case we will be using _"configuration_squid_6060.ini"_
+Make sure that an _.ini_ file is present in the software folder to be able to run the program. In our case we will be using _"configuration_squid_6060.ini"_
 
 ## Using the software
 ```
