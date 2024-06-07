@@ -104,43 +104,42 @@ class OctopiGUI(QMainWindow):
             if ENABLE_NL5:
                 import control.NL5 as NL5
                 self.nl5 = NL5.NL5_Simulation()
+            if ENABLE_CELLX:
+                self.cellx = serial_peripherals.CellX_Simulation()
             if SUPPORT_LASER_AUTOFOCUS:
-                self.camera = camera.Camera_Simulation(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
-                self.camera.set_pixel_format(DEFAULT_PIXEL_FORMAT)
                 self.camera_focus = camera_fc.Camera_Simulation()
-            else:
-                self.camera = camera.Camera_Simulation(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
+            self.camera = camera.Camera_Simulation(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
+            self.camera.set_pixel_format(DEFAULT_PIXEL_FORMAT)
             self.microcontroller = microcontroller.Microcontroller_Simulation()
         else:
             if ENABLE_SPINNING_DISK_CONFOCAL:
                 self.xlight = serial_peripherals.XLight(XLIGHT_SERIAL_NUMBER,XLIGHT_SLEEP_TIME_FOR_WHEEL)
             if ENABLE_NL5:
+                print('initializing NL5 ...')
                 import control.NL5 as NL5
                 self.nl5 = NL5.NL5()
+                print('NL5 initialized')
+            if ENABLE_CELLX:
+                print('initializing CellX ...')
+                self.cellx = serial_peripherals.CellX(CELLX_SN)
+                for channel in [1,2,3,4]:
+                    self.cellx.set_modulation(channel,CELLX_MODULATION)
+                    self.cellx.turn_on(channel)
+                print('CellX initialized')
             if USE_LDI_SERIAL_CONTROL:
+                print('initializing LDI ...')
                 self.ldi = serial_peripherals.LDI()
                 self.ldi.run()
-            if True:
-                if SUPPORT_LASER_AUTOFOCUS:
-                    sn_camera_main = camera.get_sn_by_model(MAIN_CAMERA_MODEL)
-                    sn_camera_focus = camera_fc.get_sn_by_model(FOCUS_CAMERA_MODEL)
-                    self.camera = camera.Camera(sn=sn_camera_main,rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
-                    self.camera.open()
-                    self.camera_focus = camera_fc.Camera(sn=sn_camera_focus)
-                    self.camera_focus.open()
-                else:
-                    self.camera = camera.Camera(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
-                    self.camera.open()
-            else:
-                if SUPPORT_LASER_AUTOFOCUS:
-                    self.camera = camera.Camera_Simulation(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
-                    self.camera.open()
-                    self.camera_focus = camera.Camera_Simulation()
-                    self.camera_focus.open()
-                else:
-                    self.camera = camera.Camera_Simulation(rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
-                    self.camera.open()
-                print('! camera not detected, using simulated camera !')
+                print('LDI initialized')
+            if SUPPORT_LASER_AUTOFOCUS:
+                sn_camera_focus = camera_fc.get_sn_by_model(FOCUS_CAMERA_MODEL)
+                self.camera_focus = camera_fc.Camera(sn=sn_camera_focus)
+                self.camera_focus.open()
+                self.camera_focus.set_pixel_format('MONO8')
+            sn_camera_main = camera.get_sn_by_model(MAIN_CAMERA_MODEL)
+            self.camera = camera.Camera(sn=sn_camera_main,rotate_image_angle=ROTATE_IMAGE_ANGLE,flip_image=FLIP_IMAGE)
+            self.camera.open()
+            self.camera.set_pixel_format(DEFAULT_PIXEL_FORMAT)
             self.microcontroller = microcontroller.Microcontroller(version=CONTROLLER_VERSION,sn=CONTROLLER_SN)
 
         # reset the MCU
@@ -281,9 +280,9 @@ class OctopiGUI(QMainWindow):
             self.nl5Wdiget = NL5Widget.NL5Widget(self.nl5)
 
         if CAMERA_TYPE == "Toupcam":
-            self.cameraSettingWidget = widgets.CameraSettingsWidget(self.camera, include_gain_exposure_time=False, include_camera_temperature_setting = True)
+            self.cameraSettingWidget = widgets.CameraSettingsWidget(self.camera, include_gain_exposure_time=False, include_camera_temperature_setting = True, include_camera_auto_wb_setting = False)
         else:
-            self.cameraSettingWidget = widgets.CameraSettingsWidget(self.camera, include_gain_exposure_time=False, include_camera_temperature_setting = False)
+            self.cameraSettingWidget = widgets.CameraSettingsWidget(self.camera, include_gain_exposure_time=False, include_camera_temperature_setting = False, include_camera_auto_wb_setting = True)
         self.liveControlWidget = widgets.LiveControlWidget(self.streamHandler,self.liveController,self.configurationManager,show_display_options=True,show_autolevel=True,autolevel=True)
         self.navigationWidget = widgets.NavigationWidget(self.navigationController,self.slidePositionController,widget_configuration='384 well plate')
         self.dacControlWidget = widgets.DACControWidget(self.microcontroller)
@@ -460,9 +459,9 @@ class OctopiGUI(QMainWindow):
 
             # widgets
             if FOCUS_CAMERA_TYPE == "Toupcam":
-                self.cameraSettingWidget_focus_camera = widgets.CameraSettingsWidget(self.camera_focus, include_gain_exposure_time = False, include_camera_temperature_setting = True)
+                self.cameraSettingWidget_focus_camera = widgets.CameraSettingsWidget(self.camera_focus, include_gain_exposure_time = False, include_camera_temperature_setting = True, include_camera_auto_wb_setting = False)
             else:
-                self.cameraSettingWidget_focus_camera = widgets.CameraSettingsWidget(self.camera_focus, include_gain_exposure_time = False, include_camera_temperature_setting = False)
+                self.cameraSettingWidget_focus_camera = widgets.CameraSettingsWidget(self.camera_focus, include_gain_exposure_time = False, include_camera_temperature_setting = False, include_camera_auto_wb_setting = True)
 
             self.liveControlWidget_focus_camera = widgets.LiveControlWidget(self.streamHandler_focus_camera,self.liveController_focus_camera,self.configurationManager_focus_camera,show_display_options=True)
             self.waveformDisplay = widgets.WaveformDisplay(N=1000,include_x=True,include_y=False)
@@ -470,11 +469,6 @@ class OctopiGUI(QMainWindow):
             self.laserAutofocusControlWidget = widgets.LaserAutofocusControlWidget(self.laserAutofocusController)
 
             self.microscopeControlTabWidget.addTab(self.laserAutofocusControlWidget, "Laser AF")
-
-            if ENABLE_SPINNING_DISK_CONFOCAL:
-                self.microscopeControlTabWidget.addTab(self.spinningDiskConfocalWidget,"Confocal")
-            if ENABLE_NL5:
-                self.microscopeControlTabWidget.addTab(self.nl5Wdiget,"Confocal")
 
             dock_laserfocus_image_display = dock.Dock('Focus Camera Image Display', autoOrientation = False)
             dock_laserfocus_image_display.showTitleBar()
@@ -521,10 +515,31 @@ class OctopiGUI(QMainWindow):
             self.displacementMeasurementController.signal_readings.connect(self.displacementMeasurementWidget.display_readings)
             self.laserAutofocusController.image_to_display.connect(self.imageDisplayWindow_focus.display_image)
 
+        # widget for confocal
+        if ENABLE_SPINNING_DISK_CONFOCAL:
+                self.microscopeControlTabWidget.addTab(self.spinningDiskConfocalWidget,"Confocal")
+        if ENABLE_NL5:
+            self.microscopeControlTabWidget.addTab(self.nl5Wdiget,"Confocal")
+
         if not USE_NAPARI_FOR_LIVE_VIEW:
             self.imageDisplayWindow.image_click_coordinates.connect(self.navigationController.move_from_click)
 
         self.navigationController.move_to_cached_position()
+
+        # Create the menu bar
+        menubar = self.menuBar()
+        # Add the "Settings" menu
+        settings_menu = menubar.addMenu("Settings")
+        if SUPPORT_SCIMICROSCOPY_LED_ARRAY:
+            # Add the "LED Matrix" action
+            led_matrix_action = QAction("LED Matrix", self)
+            led_matrix_action.triggered.connect(self.open_led_array_settings_dialog)
+            settings_menu.addAction(led_matrix_action)
+
+    def open_led_array_settings_dialog(self):
+        if SUPPORT_SCIMICROSCOPY_LED_ARRAY:
+            dialog = widgets.LedMatrixSettingsDialog(self.liveController.led_array) # to move led_arry outside liveController
+            dialog.exec_()
 
     def closeEvent(self, event):
 
@@ -547,7 +562,13 @@ class OctopiGUI(QMainWindow):
         self.navigationController.turnoff_axis_pid_control()
 
         self.liveController.stop_live()
+        self.camera.stop_streaming()
         self.camera.close()
+        if ENABLE_CELLX:
+            for channel in [1,2,3,4]:
+                self.cellx.turn_off(channel)
+            self.cellx.close()
+
         self.imageSaver.close()
         self.imageDisplay.close()
         if not SINGLE_WINDOW:

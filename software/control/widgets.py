@@ -558,15 +558,15 @@ class FocusMapWidget(QWidget):
 
 class CameraSettingsWidget(QFrame):
 
-    def __init__(self, camera, include_gain_exposure_time = False, include_camera_temperature_setting = False, main=None, *args, **kwargs):
+    def __init__(self, camera, include_gain_exposure_time = False, include_camera_temperature_setting = False, include_camera_auto_wb_setting = False, main=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self.camera = camera
-        self.add_components(include_gain_exposure_time,include_camera_temperature_setting)        
+        self.add_components(include_gain_exposure_time,include_camera_temperature_setting,include_camera_auto_wb_setting)        
         # set frame style
         self.setFrameStyle(QFrame.Panel | QFrame.Raised)
 
-    def add_components(self,include_gain_exposure_time,include_camera_temperature_setting):
+    def add_components(self,include_gain_exposure_time,include_camera_temperature_setting,include_camera_auto_wb_setting):
 
         # add buttons and input fields
         self.entry_exposureTime = QDoubleSpinBox()
@@ -684,11 +684,45 @@ class CameraSettingsWidget(QFrame):
         hbox1.addWidget(QLabel('offset x'))
         hbox1.addWidget(self.entry_ROI_offset_x)
 
+        if include_camera_auto_wb_setting:
+            is_color = False
+            try:
+                is_color = self.camera.get_is_color()
+            except AttributeError:
+                pass
+
+            if is_color is True:
+                grid_camera_setting_wb = QGridLayout()
+
+                # auto white balance 
+                self.btn_auto_wb = QPushButton('Auto White Balance')
+                self.btn_auto_wb.setCheckable(True)
+                self.btn_auto_wb.setChecked(False)
+                self.btn_auto_wb.clicked.connect(self.toggle_auto_wb)
+                print(self.camera.get_balance_white_auto())
+                grid_camera_setting_wb.addWidget(self.btn_auto_wb,0,0)
+
         self.grid = QGridLayout()
         self.grid.addLayout(grid_ctrl,0,0)
         self.grid.addLayout(hbox1,1,0)
+        if include_camera_auto_wb_setting:
+            is_color = False
+            try:
+                is_color = self.camera.get_is_color()
+            except AttributeError:
+                pass
+            if is_color is True:
+                self.grid.addLayout(grid_camera_setting_wb,2,0)
+
         self.grid.setRowStretch(self.grid.rowCount(), 1)
         self.setLayout(self.grid)
+
+    def toggle_auto_wb(self,pressed):
+        # 0: OFF  1:CONTINUOUS  2:ONCE
+        if pressed:
+            self.camera.set_balance_white_auto(1)
+        else:
+            self.camera.set_balance_white_auto(0)
 
     def set_exposure_time(self,exposure_time):
         self.entry_exposureTime.setValue(exposure_time)
@@ -1633,7 +1667,7 @@ class MultiPointWidget(QFrame):
         
         self.entry_NZ = QSpinBox()
         self.entry_NZ.setMinimum(1) 
-        self.entry_NZ.setMaximum(100) 
+        self.entry_NZ.setMaximum(2000) 
         self.entry_NZ.setSingleStep(1)
         self.entry_NZ.setValue(1)
         self.entry_NZ.setKeyboardTracking(False)
@@ -1927,7 +1961,7 @@ class MultiPointWidget2(QFrame):
         
         self.entry_NZ = QSpinBox()
         self.entry_NZ.setMinimum(1)
-        self.entry_NZ.setMaximum(100)
+        self.entry_NZ.setMaximum(2000)
         self.entry_NZ.setSingleStep(1)
         self.entry_NZ.setValue(1)
         self.entry_NZ.setKeyboardTracking(False)
@@ -4045,3 +4079,35 @@ class Well1536SelectionWidget(QWidget):
     def get_selected_cells(self):
         list_of_selected_cells = list(self.selected_cells.keys())
         return(list_of_selected_cells)
+
+class LedMatrixSettingsDialog(QDialog):
+    def __init__(self,led_array):
+        self.led_array = led_array
+        super().__init__()
+        self.setWindowTitle("LED Matrix Settings")
+
+        self.layout = QVBoxLayout()
+
+        # Add QDoubleSpinBox for LED intensity (0-1)
+        self.NA_spinbox = QDoubleSpinBox()
+        self.NA_spinbox.setRange(0, 1)
+        self.NA_spinbox.setSingleStep(0.01)
+        self.NA_spinbox.setValue(self.led_array.NA)
+
+        NA_layout = QHBoxLayout()
+        NA_layout.addWidget(QLabel("NA"))
+        NA_layout.addWidget(self.NA_spinbox)
+
+        self.layout.addLayout(NA_layout)
+        self.setLayout(self.layout)
+
+        # add ok/cancel buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
+
+        self.button_box.accepted.connect(self.update_NA)
+
+    def update_NA(self):
+        self.led_array.set_NA(self.NA_spinbox.value())

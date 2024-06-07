@@ -474,6 +474,8 @@ class LiveController(QObject):
                     self.led_array.set_illumination('dpc.b')
                 if 'BF LED matrix full' in self.currentConfiguration.name:
                     self.led_array.set_illumination('bf')
+                if 'DF LED matrix' in self.currentConfiguration.name:
+                    self.led_array.set_illumination('df')
             else:
                 self.microcontroller.set_illumination_led_matrix(illumination_source,r=(intensity/100)*LED_MATRIX_R_FACTOR,g=(intensity/100)*LED_MATRIX_G_FACTOR,b=(intensity/100)*LED_MATRIX_B_FACTOR)
         else:
@@ -486,11 +488,13 @@ class LiveController(QObject):
                     # set intensity for active channel
                     print('set intensity')
                     self.ldi.set_intensity(int(illumination_source),intensity)
-            elif NL5_USE_DOUT and 'Fluorescence' in self.currentConfiguration.name:
+            elif ENABLE_NL5 and NL5_USE_DOUT and 'Fluorescence' in self.currentConfiguration.name:
                 wavelength = int(self.currentConfiguration.name[13:16])
                 self.microscope.nl5.set_active_channel(NL5_WAVENLENGTH_MAP[wavelength])
                 if NL5_USE_AOUT and update_channel_settings:
                     self.microscope.nl5.set_laser_power(NL5_WAVENLENGTH_MAP[wavelength],int(intensity))
+                if ENABLE_CELLX:
+                    self.microscope.cellx.set_laser_power(NL5_WAVENLENGTH_MAP[wavelength],int(intensity))
             else:
                 self.microcontroller.set_illumination(illumination_source,intensity)
 
@@ -550,7 +554,10 @@ class LiveController(QObject):
                 # print('real trigger fps is ' + str(self.fps_real))
         elif self.trigger_mode == TriggerMode.HARDWARE:
             self.trigger_ID = self.trigger_ID + 1
-            self.microcontroller.send_hardware_trigger(control_illumination=True,illumination_on_time_us=self.camera.exposure_time*1000)
+            if ENABLE_NL5 and NL5_USE_DOUT:
+                self.microscope.nl5.start_acquisition()
+            else:
+                self.microcontroller.send_hardware_trigger(control_illumination=True,illumination_on_time_us=self.camera.exposure_time*1000)
 
     def _start_triggerred_acquisition(self):
         self.timer_trigger.start()
@@ -1277,15 +1284,20 @@ class AutofocusWorker(QObject):
             self.navigationController.move_z_usteps(self.deltaZ_usteps)
             self.wait_till_operation_is_completed()
             steps_moved = steps_moved + 1
-            # trigger acquisition (including turning on the illumination)
+            # trigger acquisition (including turning on the illumination) and read frame
             if self.liveController.trigger_mode == TriggerMode.SOFTWARE:
                 self.liveController.turn_on_illumination()
                 self.wait_till_operation_is_completed()
                 self.camera.send_trigger()
+                image = self.camera.read_frame()
             elif self.liveController.trigger_mode == TriggerMode.HARDWARE:
-                self.microcontroller.send_hardware_trigger(control_illumination=True,illumination_on_time_us=self.camera.exposure_time*1000)
-            # read camera frame
-            image = self.camera.read_frame()
+                if 'Fluorescence' in config.name and ENABLE_NL5 and NL5_USE_DOUT:
+                    self.camera.image_is_ready = False # to remove
+                    self.microscope.nl5.start_acquisition()
+                    image = self.camera.read_frame(reset_image_ready_flag=False)
+                else:
+                    self.microcontroller.send_hardware_trigger(control_illumination=True,illumination_on_time_us=self.camera.exposure_time*1000)
+                    image = self.camera.read_frame()
             if image is None:
                 continue
             # tunr of the illumination if using software trigger
@@ -1305,6 +1317,8 @@ class AutofocusWorker(QObject):
             if focus_measure < focus_measure_max*AF.STOP_THRESHOLD:
                 break
 
+        QApplication.processEvents()
+
         # move to the starting location
         # self.navigationController.move_z_usteps(-steps_moved*self.deltaZ_usteps) # combine with the back and forth maneuver below
         # self.wait_till_operation_is_completed()
@@ -1323,6 +1337,8 @@ class AutofocusWorker(QObject):
             idx_in_focus = focus_measure_vs_z.index(max(focus_measure_vs_z))
             self.navigationController.move_z_usteps((idx_in_focus+1)*self.deltaZ_usteps-steps_moved*self.deltaZ_usteps)
             self.wait_till_operation_is_completed()
+
+        QApplication.processEvents()
 
         # move to the calculated in-focus position
         # self.navigationController.move_z_usteps(idx_in_focus*self.deltaZ_usteps)
@@ -1863,29 +1879,21 @@ class MultiPointWorker(QObject):
                                     # update the current configuration
                                     self.signal_current_configuration.emit(config)
                                     self.wait_till_operation_is_completed()
-                                    # trigger acquisition (including turning on the illumination)
+                                    # trigger acquisition (including turning on the illumination) and read frame
                                     if self.liveController.trigger_mode == TriggerMode.SOFTWARE:
                                         self.liveController.turn_on_illumination()
                                         self.wait_till_operation_is_completed()
                                         self.camera.send_trigger()
+                                        image = self.camera.read_frame()
                                     elif self.liveController.trigger_mode == TriggerMode.HARDWARE:
                                         if 'Fluorescence' in config.name and ENABLE_NL5 and NL5_USE_DOUT:
-                                            self.microcontroller.set_pin_level(NL5_TRIGGER_PIN,1) # to replace
-                                            time.sleep(0.02) # to replace
-                                            self.microcontroller.set_pin_level(NL5_TRIGGER_PIN,0) # to replace
+                                            self.camera.image_is_ready = False # to remove
+                                            self.microscope.nl5.start_acquisition()
+                                            image = self.camera.read_frame(reset_image_ready_flag=False)
                                         else:
                                             self.microcontroller.send_hardware_trigger(control_illumination=True,illumination_on_time_us=self.camera.exposure_time*1000)
-                                    # read camera frame
-                                    old_pixel_format = self.camera.pixel_format
-                                    if config.pixel_format is not None:
-                                        if config.pixel_format != "" and config.pixel_format.lower() != "default":
-                                            self.camera.set_pixel_format(config.pixel_format)
+                                            image = self.camera.read_frame()
                                     
-                                    image = self.camera.read_frame()
-
-                                    if config.pixel_format is not None:
-                                        if config.pixel_format != "" and config.pixel_format.lower() != "default":
-                                            self.camera.set_pixel_format(old_pixel_format)
                                     if image is None:
                                         print('self.camera.read_frame() returned None')
                                         continue

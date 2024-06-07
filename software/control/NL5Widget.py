@@ -20,12 +20,14 @@ class NL5SettingsDialog(QDialog):
         # Offset X control
         layout.addWidget(QLabel("Offset X"), 1, 0)
         self.offset_x_input = QDoubleSpinBox()
+        self.offset_x_input.setMinimum(-30)
         self.offset_x_input.setValue(self.nl5.offset_x)
         layout.addWidget(self.offset_x_input, 1, 1)
         
         # Bypass offset control
         layout.addWidget(QLabel("Bypass Offset"), 2, 0)
         self.bypass_offset_input = QDoubleSpinBox()
+        self.bypass_offset_input.setMinimum(-30)
         self.bypass_offset_input.setValue(self.nl5.bypass_offset)
         layout.addWidget(self.bypass_offset_input, 2, 1)
         
@@ -64,7 +66,7 @@ class NL5Widget(QWidget):
         # Line speed control
         layout.addWidget(QLabel("Line Speed"), 1, 0)
         self.line_speed_input = QSpinBox()
-        self.line_speed_input.setMaximum(10000)
+        self.line_speed_input.setMaximum(20000)
         self.line_speed_input.setValue(self.nl5.line_speed)
         self.line_speed_input.valueChanged.connect(self.update_line_speed)
         layout.addWidget(self.line_speed_input, 1, 1)
@@ -86,7 +88,7 @@ class NL5Widget(QWidget):
         # Start acquisition button
         self.start_acquisition_button = QPushButton("Start Acquisition")
         self.start_acquisition_button.clicked.connect(self.nl5.start_acquisition)
-        layout.addWidget(self.start_acquisition_button, 3, 0, 1, 4)
+        # layout.addWidget(self.start_acquisition_button, 3, 0, 1, 4)
 
         # NL5 Settings button
         self.settings_button = QPushButton("NL5 Settings")
