@@ -3,7 +3,6 @@ sudo apt update
 sudo apt upgrade
 
 # make sure to activate your mamba environment for this project
-
 mamba activate squid-station
 
 # install packages
